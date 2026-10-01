@@ -50,6 +50,7 @@ import me.glaremasters.guilds.guild.GuildMember
 import me.glaremasters.guilds.messages.Messages
 import me.glaremasters.guilds.utils.Constants
 import me.glaremasters.guilds.utils.EconomyUtils
+import me.glaremasters.guilds.utils.GuildInputValidator
 import me.glaremasters.guilds.utils.StringUtils
 import net.milkbowl.vault.economy.Economy
 import net.milkbowl.vault.permission.Permission
@@ -81,7 +82,7 @@ internal class CommandCreate : BaseCommand() {
 
         val cost = settingsManager.getProperty(CostSettings.CREATION)
 
-        if (guildHandler.checkGuildNames(name)) {
+        if (GuildInputValidator.isNameTaken(name, guildHandler.guilds.values)) {
             throw ExpectationNotMet(Messages.CREATE__GUILD_NAME_TAKEN)
         }
 
@@ -89,17 +90,17 @@ internal class CommandCreate : BaseCommand() {
             throw ExpectationNotMet(Messages.ERROR__BLACKLIST)
         }
 
-        if (!guildHandler.nameCheck(name, settingsManager)) {
+        if (!GuildInputValidator.isValidName(name, settingsManager)) {
             throw ExpectationNotMet(Messages.CREATE__REQUIREMENTS)
         }
 
         if (!settingsManager.getProperty(GuildSettings.DISABLE_PREFIX)) {
             if (prefix != null) {
-                if (!guildHandler.prefixCheck(prefix, settingsManager)) {
+                if (!GuildInputValidator.isValidPrefix(prefix, settingsManager)) {
                     throw ExpectationNotMet(Messages.CREATE__PREFIX_TOO_LONG)
                 }
             } else {
-                if (!guildHandler.prefixCheck(name, settingsManager)) {
+                if (!GuildInputValidator.isValidPrefix(name, settingsManager)) {
                     throw ExpectationNotMet(Messages.CREATE__NAME_TOO_LONG)
                 }
             }
@@ -158,13 +159,12 @@ internal class CommandCreate : BaseCommand() {
                 guildHandler.addGuild(guild)
                 economy.withdrawPlayer(player, cost)
                 currentCommandIssuer.sendInfo(Messages.CREATE__SUCCESSFUL, "{guild}", guild.name)
+
+                guildHandler.addToMemberCache(player.uniqueId, guild.id)
                 guildHandler.addGuildPerms(permission, player)
                 guildHandler.addRolePerm(permission, player)
 
                 guild.updateGuildSkull(player, settingsManager)
-
-                guildHandler.addToMemberCache(player.uniqueId, guild.id)
-
 
                 actionHandler.removeAction(player)
             }

@@ -62,6 +62,14 @@ public class GuildsMigrationService extends PlainMigrationService {
      * @return old paths or not
      */
     private static boolean hasDeprecatedProperties(PropertyReader reader) {
+        /*
+         * Only paths that no longer exist in any SettingsHolder belong here.
+         *
+         * ConfigMe rewrites the whole config file whenever this returns true (checkAndMigrate ->
+         * save() -> exportProperties), which strips admin comments and any custom keys. A path that
+         * is still a live property therefore makes every single startup look like a migration:
+         * timers.cooldowns.sethome used to be listed here while CooldownSettings still defines it.
+         */
         String[] deprecatedProperties = {
                 "hooks.essentials-remove-brackets",
                 "tablist.enabled",
@@ -71,7 +79,6 @@ public class GuildsMigrationService extends PlainMigrationService {
                 "tiers.carry-over",
                 "roles",
                 "guis.guild-buffs",
-                "timers.cooldowns.sethome",
                 "guild.damage.respect-wg-pvp-flag",
                 "settings.syntax-name"
         };
@@ -101,7 +108,7 @@ public class GuildsMigrationService extends PlainMigrationService {
                 try {
                     newFile.createNewFile();
                 } catch (IOException ex) {
-                    ex.printStackTrace();
+                    LoggingUtils.severe("Unable to create migrated config file: " + newFile.getAbsolutePath(), ex);
                     return false;
                 }
                 YamlConfiguration config = YamlConfiguration.loadConfiguration(newFile);
@@ -118,7 +125,7 @@ public class GuildsMigrationService extends PlainMigrationService {
                     config.save(newFile);
                     LoggingUtils.info("&3Converting done!");
                 } catch (IOException ex) {
-                    ex.printStackTrace();
+                    LoggingUtils.severe("Unable to save migrated config file: " + newFile.getAbsolutePath(), ex);
                 }
             }
             return true;

@@ -35,10 +35,10 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -343,7 +343,7 @@ public class Guild {
      * @return list of players
      */
     public List<Player> getOnlineAsPlayers() {
-        return getOnlineMembers().stream().map(m -> Bukkit.getPlayer(m.getUuid())).collect(Collectors.toList());
+        return getOnlineMembers().stream().map(m -> Bukkit.getPlayer(m.getUuid())).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     /**
@@ -438,7 +438,12 @@ public class Guild {
      * @param replacements any args we need to handle
      */
     public void sendMessage(CommandManager manager, Messages key, String... replacements) {
-        getOnlineMembers().forEach(m -> manager.getCommandIssuer(Bukkit.getPlayer(m.getUuid())).sendInfo(key, replacements));
+        getOnlineMembers().forEach(m -> {
+            final Player player = Bukkit.getPlayer(m.getUuid());
+            if (player != null) {
+                manager.getCommandIssuer(player).sendInfo(key, replacements);
+            }
+        });
     }
 
     /**
@@ -557,16 +562,6 @@ public class Guild {
         handler.addRolePerm(permission, newGuildMaster.getAsOfflinePlayer());
 
         setGuildMaster(newGuildMaster);
-    }
-
-    /**
-     * Simple method to add a buff to all online members
-     * @param type the potion type
-     * @param length the length of the potion
-     * @param amplifier the strength of the potion
-     */
-    public void addPotion(String type, int length, int amplifier) {
-        getOnlineAsPlayers().forEach(p -> p.addPotionEffect(new PotionEffect(PotionEffectType.getByName(type), length, amplifier)));
     }
 
     /**
@@ -820,4 +815,3 @@ public class Guild {
         }
     }
 }
-

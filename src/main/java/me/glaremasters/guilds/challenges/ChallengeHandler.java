@@ -35,6 +35,7 @@ import me.glaremasters.guilds.guild.GuildChallenge;
 import me.glaremasters.guilds.guild.GuildMember;
 import me.glaremasters.guilds.guild.GuildRolePerm;
 import me.glaremasters.guilds.messages.Messages;
+import me.glaremasters.guilds.utils.LoggingUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -43,10 +44,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +83,7 @@ public class ChallengeHandler {
                 challenges.add(challenge);
             }
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LoggingUtils.severe("An error occurred while loading guild challenges.", ex);
         }
     }
 
@@ -176,7 +179,7 @@ public class ChallengeHandler {
      */
     public List<Player> getOnlineDefenders(@NotNull Guild guild) {
         List<GuildMember> members = guild.getOnlineMembers().stream().filter(m -> m.getRole().hasPerm(GuildRolePerm.INITIATE_WAR)).collect(Collectors.toList());
-        return members.stream().map(m -> Bukkit.getPlayer(m.getUuid())).collect(Collectors.toList());
+        return members.stream().map(m -> Bukkit.getPlayer(m.getUuid())).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     /**
@@ -238,6 +241,11 @@ public class ChallengeHandler {
      * @param location the location to send them to
      */
     public void sendToArena(@NotNull Map<UUID, String> players, @Nullable Location location) {
+        if (location == null) {
+            LoggingUtils.warn("Unable to send war players to an arena because the arena location is not configured.");
+            return;
+        }
+
         players.keySet().forEach(p -> {
             Player player = Bukkit.getPlayer(p);
             if (player != null) {
@@ -276,8 +284,17 @@ public class ChallengeHandler {
     public void teleportRemaining(@NotNull GuildChallenge challenge) {
         getAllPlayersAlive(challenge).forEach((key, value) -> {
             final Location location = ACFBukkitUtil.stringToLocation(value);
-            final Player player = Bukkit.getPlayer(key);
-            Bukkit.getScheduler().runTaskLater(guilds, () -> player.teleport(location), 1L);
+            if (location == null) {
+                LoggingUtils.warn("Unable to teleport war player " + key + " back because their saved location is invalid.");
+                return;
+            }
+
+            Bukkit.getScheduler().runTaskLater(guilds, () -> {
+                final Player player = Bukkit.getPlayer(key);
+                if (player != null) {
+                    player.teleport(location);
+                }
+            }, 1L);
         });
     }
 
@@ -352,8 +369,13 @@ public class ChallengeHandler {
                 message = Messages.WAR__PLAYER_KILLED_OTHER;
                 break;
         }
-        getAllPlayersAlive(challenge).keySet().forEach(p -> guilds.getCommandManager().getCommandIssuer(Bukkit.getPlayer(p))
-                .sendInfo(message, "{player}", player.getName(), "{killer}", killer.getName()));
+        getAllPlayersAlive(challenge).keySet().forEach(p -> {
+            final Player target = Bukkit.getPlayer(p);
+            if (target != null) {
+                guilds.getCommandManager().getCommandIssuer(target)
+                        .sendInfo(message, "{player}", player.getName(), "{killer}", killer.getName());
+            }
+        });
     }
 
     /**
@@ -461,7 +483,7 @@ public class ChallengeHandler {
                 // Save the details about the challenge
                saveData();
             } catch (IOException e) {
-                e.printStackTrace();
+                LoggingUtils.severe("An error occurred while saving guild challenge data after a war ended.", e);
             }
         }
     }
@@ -492,7 +514,18 @@ public class ChallengeHandler {
     }
 
 
+    /**
+     * Read only view of every tracked challenge, completed ones included.
+     *
+     * <p>This is a live view, not a copy: reads follow later changes, and iteration is only as safe
+     * as the underlying collection is. What it does stop is writes. Pushing a challenge into this set
+     * behind the handler's back skips the arena reservation and the expiry task that
+     * {@code /guild war challenge} sets up around {@link #addChallenge(GuildChallenge)}, which leaves
+     * an arena marked as in use for the rest of the session with nothing scheduled to release it.
+     *
+     * @return unmodifiable view of the tracked challenges
+     */
     public Set<GuildChallenge> getChallenges() {
-        return this.challenges;
+        return Collections.unmodifiableSet(challenges);
     }
 }

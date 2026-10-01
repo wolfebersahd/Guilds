@@ -43,6 +43,7 @@ import me.glaremasters.guilds.messages.Messages
 import me.glaremasters.guilds.utils.ClaimUtils
 import me.glaremasters.guilds.utils.Constants
 import me.glaremasters.guilds.utils.EconomyUtils
+import me.glaremasters.guilds.utils.GuildInputValidator
 import me.glaremasters.guilds.utils.StringUtils
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
@@ -62,11 +63,12 @@ internal class CommandRename : BaseCommand() {
     @CommandPermission(Constants.BASE_PERM + "rename")
     @Syntax("%name")
     fun rename(player: Player, @Conditions("perm:perm=RENAME") guild: Guild, name: String) {
-        if (guildHandler.checkGuildNames(name)) {
+        // Exclude this guild so it can keep or return to a name it already has.
+        if (GuildInputValidator.isNameTaken(name, guildHandler.guilds.values, guild.id)) {
             throw ExpectationNotMet(Messages.CREATE__GUILD_NAME_TAKEN)
         }
 
-        if (!guildHandler.nameCheck(name, settingsManager)) {
+        if (!GuildInputValidator.isValidName(name, settingsManager)) {
             throw ExpectationNotMet(Messages.CREATE__REQUIREMENTS)
         }
 
